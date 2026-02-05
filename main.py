@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Body, Depends, HTTPException, status
+from fastapi import FastAPI, Request, Body, Depends, HTTPException, status, Header
 from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
@@ -58,28 +58,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 # Security
 API_KEY_NAME = "X-API-Key"
+# We keep this for the Authorize button if needed, but we'll use Header() for visibility
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
-async def verify_api_key(request: Request, api_key: str = Depends(api_key_header)):
-    # Check header first, then try to get from body
+async def verify_api_key(x_api_key: str = Header(None, alias="X-API-Key")):
     expected_key = os.getenv("API_KEY", "KISHORE-HONEY-POT-2026")
     
-    # Try to extract from body if not in header
-    body_key = None
-    try:
-        # We peek at the body; for small JSON bodies this is usually fine
-        # but we have to be careful not to consume it if we don't need to.
-        # However, FastAPI models already parsed it, but verify_api_key runs before.
-        # So we'll check it again in the endpoint if needed, or 
-        # just allow the dependency to pass if header exists.
-        pass
-    except:
-        pass
-
-    if api_key == expected_key:
-        return api_key
+    # Check Header from parameters
+    if x_api_key == expected_key:
+        return x_api_key
     
-    # If header fails, we'll let the endpoint check the body field
     return None
 
 def check_body_key(req_key: str):
@@ -102,9 +90,9 @@ async def health_check():
     return {"status": "Honey-pot API running"}
 
 @app.post("/agent")
-async def agent_analyze(req: AgentRequest, api_key: str = Depends(api_key_header)):
-    # Verify key from either Header or Body
-    if api_key != os.getenv("API_KEY", "KISHORE-HONEY-POT-2026"):
+async def agent_analyze(req: AgentRequest, x_api_key: str = Depends(verify_api_key)):
+    # Verify key from either Header (Parameters) or Body
+    if not x_api_key:
         check_body_key(req.X_API_KEY)
     # AI Analysis
     analysis = await ai_engine.analyze_intent(req.prompt)
@@ -125,9 +113,9 @@ async def agent_analyze(req: AgentRequest, api_key: str = Depends(api_key_header
     }
 
 @app.post("/login")
-async def honey_login(req: LoginRequest, request: Request, api_key: str = Depends(api_key_header)):
-    # Verify key from either Header or Body
-    if api_key != os.getenv("API_KEY", "KISHORE-HONEY-POT-2026"):
+async def honey_login(req: LoginRequest, request: Request, x_api_key: str = Depends(verify_api_key)):
+    # Verify key from either Header (Parameters) or Body
+    if not x_api_key:
         check_body_key(req.X_API_KEY)
     # Detection
     is_sql_i = ThreatDetector.detect_sql_injection(req.username) or ThreatDetector.detect_sql_injection(req.password)
