@@ -8,10 +8,22 @@ class AttackLogger:
     @staticmethod
     def log_attack(data: dict):
         timestamp = datetime.now().isoformat()
-        log_entry = {
+        
+        # Helper to convert Enums to strings for JSON serialization
+        def serialize(obj):
+            from enum import Enum
+            if isinstance(obj, Enum):
+                return obj.value
+            if isinstance(obj, dict):
+                return {k: serialize(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [serialize(i) for i in obj]
+            return obj
+
+        log_entry = serialize({
             "timestamp": timestamp,
             **data
-        }
+        })
         
         # Always print to stdout (important for hosted logging like Vercel)
         print(f"ATTACK LOG: {json.dumps(log_entry)}")
