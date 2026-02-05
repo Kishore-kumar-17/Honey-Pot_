@@ -1,6 +1,6 @@
 # 🛡️ Honey-Pot API
 
-The Honey-Pot API is a security-focused backend application designed to detect, log, and analyze malicious activities.
+The **Honey-Pot API** is a FastAPI-based security system designed to detect, log, and analyze phishing, scams, and malicious activities. Instead of just blocking attackers, it intelligently engages them to study their behavior and improve defensive cybersecurity strategies.
 
 ## 🚀 Getting Started
 
