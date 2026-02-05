@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, Body
+from fastapi import FastAPI, Request, Body, Depends, HTTPException, status
+from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel
 import os
@@ -21,6 +22,7 @@ ai_engine = AIEngine()
 class AgentRequest(BaseModel):
     ip: str
     prompt: Optional[str] = "No prompt provided"
+    X_API_KEY: str = "Enter Secret Key Here"
 
     class Config:
         extra = "allow"
@@ -29,6 +31,7 @@ class LoginRequest(BaseModel):
     username: str
     password: str
     ip: str
+    X_API_KEY: str = "Enter Secret Key Here"
 
     class Config:
         extra = "allow"
@@ -53,12 +56,56 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"status": "error", "message": "Unauthorized access", "code": 401}
     )
 
-@app.get("/")
+# Security
+API_KEY_NAME = "X-API-Key"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
+
+async def verify_api_key(request: Request, api_key: str = Depends(api_key_header)):
+    # Check header first, then try to get from body
+    expected_key = os.getenv("API_KEY", "KISHORE-HONEY-POT-2026")
+    
+    # Try to extract from body if not in header
+    body_key = None
+    try:
+        # We peek at the body; for small JSON bodies this is usually fine
+        # but we have to be careful not to consume it if we don't need to.
+        # However, FastAPI models already parsed it, but verify_api_key runs before.
+        # So we'll check it again in the endpoint if needed, or 
+        # just allow the dependency to pass if header exists.
+        pass
+    except:
+        pass
+
+    if api_key == expected_key:
+        return api_key
+    
+    # If header fails, we'll let the endpoint check the body field
+    return None
+
+def check_body_key(req_key: str):
+    expected_key = os.getenv("API_KEY", "KISHORE-HONEY-POT-2026")
+    if req_key != expected_key:
+        AttackLogger.log_attack({
+            "endpoint": "BODY_API_KEY_AUTH",
+            "type": "UNAUTHORIZED_ACCESS_ATTEMPT",
+            "provided_key": req_key,
+            "threat_level": ThreatLevel.MEDIUM,
+            "attack_type": AttackType.UNKNOWN
+        })
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing X_API_KEY in request body",
+        )
+
+@app.get("/", dependencies=[Depends(verify_api_key)])
 async def health_check():
     return {"status": "Honey-pot API running"}
 
 @app.post("/agent")
-async def agent_analyze(req: AgentRequest):
+async def agent_analyze(req: AgentRequest, api_key: str = Depends(api_key_header)):
+    # Verify key from either Header or Body
+    if api_key != os.getenv("API_KEY", "KISHORE-HONEY-POT-2026"):
+        check_body_key(req.X_API_KEY)
     # AI Analysis
     analysis = await ai_engine.analyze_intent(req.prompt)
     
@@ -78,7 +125,10 @@ async def agent_analyze(req: AgentRequest):
     }
 
 @app.post("/login")
-async def honey_login(req: LoginRequest, request: Request):
+async def honey_login(req: LoginRequest, request: Request, api_key: str = Depends(api_key_header)):
+    # Verify key from either Header or Body
+    if api_key != os.getenv("API_KEY", "KISHORE-HONEY-POT-2026"):
+        check_body_key(req.X_API_KEY)
     # Detection
     is_sql_i = ThreatDetector.detect_sql_injection(req.username) or ThreatDetector.detect_sql_injection(req.password)
     
